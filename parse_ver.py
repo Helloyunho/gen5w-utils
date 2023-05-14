@@ -66,6 +66,18 @@ def parse_ver(ver: str) -> VerFile:
     return result
 
 
+def generate_ver(ver: VerFile) -> str:
+    lines = []
+    lines.append(
+        f"+|{ver['year']}|{ver['version']}|{ver['type']}|{ver['car_codename']}|{ver['device_m_code']}|1"
+    )
+    for file in ver["files"]:
+        lines.append(
+            f"{ver['car_codename']}|{file['file_name']}|{file['file_version']}|{file['crc32']}|{file['file_size']}|1"
+        )
+    return "\n".join(lines)
+
+
 if __name__ == "__main__":
     import argparse
     from pathlib import Path
@@ -76,7 +88,7 @@ if __name__ == "__main__":
     args = ap.parse_args()
     ver_file: Path = args.ver_file.resolve()
 
-    if ver_file.exists() and ver_file.suffix == ".ver":
+    if ver_file.exists():
         with open(ver_file, "r") as f:
             ver = f.read()
         parsed = parse_ver(ver)
