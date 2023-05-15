@@ -11,6 +11,7 @@ if __name__ == "__main__":
     from encrypt_navi import encrypt_navi
     from utils.calc_crc32 import calc_crc32
     from sha224_gen import generate_hash
+    from utils.unsigned_to_signed import unsigned_to_signed
 
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -71,10 +72,9 @@ if __name__ == "__main__":
 
         # Patch Navi_Version.txt
         print("Patching Navi_Version.txt...")
+        tarlist["sw_version"]["day"] += 1
         for navi_version_path in navi_version_paths:
             navi_version_tags = navi_version_path.read_text().split(".")
-            tarlist["sw_version"]["ver1"] += 1
-            tarlist["sw_version"]["day"] += 1
             navi_version_tags[
                 3
             ] = f"{tarlist['sw_version']['year']:02d}{tarlist['sw_version']['month']:02d}{tarlist['sw_version']['day']:02d}"
@@ -137,22 +137,9 @@ if __name__ == "__main__":
             if f["file_name"] == "sw_backup.tar":
                 f["sha224"] = generate_hash(tar_path)
 
-        # Update CRC32 in .ver
-        print("Updating CRC32 in .ver...")
-        for f in ver["files"]:
-            if f["file_name"] == "sw_backup.tar":
-                crc32 = calc_crc32(tar_path.read_bytes())
-                f["crc32"] = crc32
-                size = tar_path.stat().st_size
-                f["file_size"] = size
-
         # Write TarList.txt
         print("Writing TarList.txt...")
         tarlist_path.write_text(generate_tarlist(tarlist))
-
-        # Write .ver
-        print("Writing .ver...")
-        ver_path.write_text(generate_ver(ver))
 
         # Encrypt TarList.txt to TarList.txt_encrypted
         print("Encrypting TarList.txt to TarList.txt_encrypted...")
@@ -162,6 +149,21 @@ if __name__ == "__main__":
             tarlist_path, tarlist_enc_path
         )  # it uses XOR, so it's reversible
         tarlist_path.unlink()
+
+        # Update CRC32 in .ver
+        print("Updating CRC32 and size in .ver...")
+        for f in ver["files"]:
+            if f["file_name"] in ["sw_backup.tar", "TarList.txt_encrypted"]:
+                crc32 = calc_crc32((firmware_dir / f["file_name"]).read_bytes())
+                f["crc32"] = crc32
+                size = unsigned_to_signed(
+                    (firmware_dir / f["file_name"]).stat().st_size
+                )
+                f["file_size"] = size
+
+        # Write .ver
+        print("Writing .ver...")
+        ver_path.write_text(generate_ver(ver))
 
         # Remove sw_backup/
         print("Removing sw_backup/...")
