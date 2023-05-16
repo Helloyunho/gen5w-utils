@@ -11,6 +11,7 @@ def patch_ExSLNavi(filepath, dest):
 
     code_section = hook.section_from_virtual_address(hooked_func.value)
     added_section = orig.add(code_section)
+    rodata_section = orig.get_section(".rodata")
 
     func_addr = added_section.virtual_address
 
@@ -23,6 +24,15 @@ def patch_ExSLNavi(filepath, dest):
         raise ValueError(
             "The target opcode is not found. It may be already patched or the binary is not supported."
         )
+    # check for "JNI_Layer" hex
+    expected_hex = [0x4A, 0x4E, 0x49, 0x5F, 0x4C, 0x61, 0x79, 0x65, 0x72]
+    if (
+        orig.get_content_from_virtual_address(rodata_section.virtual_address, 9)
+        != expected_hex
+    ):
+        raise ValueError(
+            "The target text is not found. It may be already patched or the binary is not supported."
+        )
 
     # patching
     ks = Ks(KS_ARCH_ARM, KS_MODE_THUMB)
@@ -31,6 +41,11 @@ def patch_ExSLNavi(filepath, dest):
     for i, b in enumerate(patch_asm):
         patch_hex[i] = b
     orig.patch_address(target_func.value + 0xBB, patch_hex)
+
+    # patching JNI_Layer
+    # JNI_HACKD
+    patch_hex = [0x4A, 0x4E, 0x49, 0x5F, 0x48, 0x41, 0x43, 0x4B, 0x44]
+    orig.patch_address(rodata_section.virtual_address, patch_hex)
     orig.write(dest)
 
 
@@ -54,6 +69,3 @@ if __name__ == "__main__":
         patch_ExSLNavi(str(filepath), str(dest))
     else:
         raise FileNotFoundError("File not found.")
-# 22e50
-# 22f04
-# offset from 22e50 to 22f04 = 0xb4
