@@ -3,6 +3,7 @@ if __name__ == "__main__":
     from pathlib import Path
     import tarfile
     import shutil
+    import subprocess
     from tarlist_decrypt import decrypt_tarlist
     from parse_tarlist import parse_tarlist, generate_tarlist
     from parse_ver import parse_ver, generate_ver
@@ -28,15 +29,18 @@ if __name__ == "__main__":
         print("Checking if every necessary file exists...")
         tarlist_enc_path = firmware_dir / "TarList.txt_encrypted"
         tarlist_path = firmware_dir / "TarList.txt"
-        ver_path = list(firmware_dir.glob("*.ver"))[0]
+        ver_path = None
+        if len(list(firmware_dir.glob("*.ver"))) > 0:
+            ver_path = next(firmware_dir.glob("*.ver"))
         tar_path = firmware_dir / "sw_backup.tar"
 
         if not tarlist_enc_path.exists() and not tarlist_path.exists():
-            raise FileNotFoundError(
-                "TarList.txt_encrypted or TarList.txt does not exist in firmware directory."
-            )
-        if not ver_path.exists():
-            raise FileNotFoundError("*.ver does not exist in firmware directory.")
+            tarlist_enc_path = firmware_dir / "NEW_TarList.txt_encrypted"
+            tarlist_path = firmware_dir / "NEW_TarList.txt"
+            if not tarlist_enc_path.exists() and not tarlist_path.exists():
+                raise FileNotFoundError(
+                    "TarList.txt_encrypted or TarList.txt does not exist in firmware directory."
+                )
         if not tar_path.exists():
             raise FileNotFoundError(
                 "sw_backup.tar does not exist in firmware directory."
@@ -50,10 +54,6 @@ if __name__ == "__main__":
         print(
             f"SW Version: {tarlist['sw_version']['region']}.{tarlist['sw_version']['year']:02d}{tarlist['sw_version']['month']:02d}{tarlist['sw_version']['day']:02d}.{tarlist['sw_version']['ver1']:x}"
         )
-
-        # Parse .ver
-        print("Parsing .ver...")
-        ver = parse_ver(ver_path.read_text())
 
         # Untar sw_backup.tar in sw_backup/
         print("Untaring sw_backup.tar in sw_backup/...")
@@ -129,8 +129,21 @@ if __name__ == "__main__":
 
         # Tar sw_backup/ to sw_backup.tar
         print("Taring sw_backup/ to sw_backup.tar...")
-        with tarfile.open(tar_path, "w") as tar:
-            tar.add(firmware_dir / "sw_backup", arcname="")
+        tar_args = [
+            "libtar",
+            "-C",
+            str(firmware_dir / "sw_backup"),
+            "-c",
+            str(tar_path),
+        ]
+        for f in (firmware_dir / "sw_backup").glob("**/*"):
+            if not f.name.startswith("."):
+                tar_args.append(str(f.relative_to(firmware_dir / "sw_backup")))
+        tar_process = subprocess.run(
+            tar_args,
+            shell=True,
+            check=True,
+        )
 
         # Update hash in TarList.txt
         print("Updating hash in TarList.txt...")
@@ -151,20 +164,25 @@ if __name__ == "__main__":
         )  # it uses XOR, so it's reversible
         tarlist_path.unlink()
 
-        # Update CRC32 in .ver
-        print("Updating CRC32 and size in .ver...")
-        for f in ver["files"]:
-            if f["file_name"] in ["sw_backup.tar", "TarList.txt_encrypted"]:
-                crc32 = calc_crc32((firmware_dir / f["file_name"]).read_bytes())
-                f["crc32"] = crc32
-                size = unsigned_to_signed(
-                    (firmware_dir / f["file_name"]).stat().st_size
-                )
-                f["file_size"] = size
+        if ver_path is not None and ver_path.exists():
+            # Parse .ver
+            print("Parsing .ver...")
+            ver = parse_ver(ver_path.read_text())
 
-        # Write .ver
-        print("Writing .ver...")
-        ver_path.write_text(generate_ver(ver))
+            # Update CRC32 in .ver
+            print("Updating CRC32 and size in .ver...")
+            for f in ver["files"]:
+                if f["file_name"] in ["sw_backup.tar", "TarList.txt_encrypted"]:
+                    crc32 = calc_crc32((firmware_dir / f["file_name"]).read_bytes())
+                    f["crc32"] = crc32
+                    size = unsigned_to_signed(
+                        (firmware_dir / f["file_name"]).stat().st_size
+                    )
+                    f["file_size"] = size
+
+            # Write .ver
+            print("Writing .ver...")
+            ver_path.write_text(generate_ver(ver))
 
         # Remove sw_backup/
         print("Removing sw_backup/...")
