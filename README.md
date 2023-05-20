@@ -13,7 +13,7 @@ Useful utilities for Hyundai/KIA/Genesis Gen5W navigation firmwares.
 - `sha224_gen.py`: Generates Hyundai's specialized SHA224 hash for Gen5W firmware.
 - `parse_tarlist.py`: Parses `TarList.txt` file in Gen5W firmware and prints it in human-friendly form.
 - `make_patched_firmware.py`: Makes custom patched firmware with `sw_backup.tar`, `TarList.txt_encrypted` and `.ver` files.
-- `hook.c`: Actual hook code for `libExSLAndroid_JNI.so` library. This uses no any default libraries or standard library functions. The build arguments are `-mthumb -fPIC -shared -fomit-frame-pointer -nostdlib -nodefaultlibs -O3 -o hook.o`.
+- `hook.c`: Actual hook code for `libExSLAndroid_JNI.so` library. This uses no any default libraries or standard library functions. The build arguments are `-mthumb -fPIC -shared -fomit-frame-pointer -nostdlib -nodefaultlibs -o hook.o`.
 
 ## Dependencies
 

@@ -137,11 +137,11 @@ if __name__ == "__main__":
             str(tar_path),
         ]
         for f in (firmware_dir / "sw_backup").glob("**/*"):
-            if not f.name.startswith("."):
+            if not f.name.startswith(".") and f.is_file():
                 tar_args.append(str(f.relative_to(firmware_dir / "sw_backup")))
         tar_process = subprocess.run(
             tar_args,
-            shell=True,
+            # shell=True,
             check=True,
         )
 
@@ -172,7 +172,7 @@ if __name__ == "__main__":
             # Update CRC32 in .ver
             print("Updating CRC32 and size in .ver...")
             for f in ver["files"]:
-                if f["file_name"] in ["sw_backup.tar", "TarList.txt_encrypted"]:
+                if f["file_name"] in ["sw_backup.tar", tarlist_enc_path.name]:
                     crc32 = calc_crc32((firmware_dir / f["file_name"]).read_bytes())
                     f["crc32"] = crc32
                     size = unsigned_to_signed(
