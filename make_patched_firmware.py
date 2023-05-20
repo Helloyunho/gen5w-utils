@@ -140,7 +140,7 @@ if __name__ == "__main__":
             if not f.name.startswith("."):
                 tar_args.append(str(f.relative_to(firmware_dir / "sw_backup")))
         tar_process = subprocess.run(
-            tar_args,
+            ' '.join(tar_args), 
             shell=True,
             check=True,
         )

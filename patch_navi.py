@@ -9,8 +9,8 @@ def patch_ExSLNavi(filepath, dest):
     hooked_func = hook.get_symbol("hooked_func")
     target_func = orig.get_symbol("printJNILog_JNI")
 
-    code_section = hook.section_from_virtual_address(hooked_func.value)
-    added_section = orig.add(code_section)
+
+    added_section = orig.add(hooked_func.section)
     rodata_section = orig.get_section(".rodata")
 
     func_addr = added_section.virtual_address
@@ -19,16 +19,17 @@ def patch_ExSLNavi(filepath, dest):
     expected_hex = [0x01, 0xD0]
     if (
         orig.get_content_from_virtual_address(target_func.value + 0xBB, 2)
-        != expected_hex
+        != bytes(expected_hex)
     ):
         raise ValueError(
             "The target opcode is not found. It may be already patched or the binary is not supported."
         )
+
     # check for "JNI_Layer" hex
     expected_hex = [0x4A, 0x4E, 0x49, 0x5F, 0x4C, 0x61, 0x79, 0x65, 0x72]
     if (
         orig.get_content_from_virtual_address(rodata_section.virtual_address, 9)
-        != expected_hex
+        != bytes(expected_hex)
     ):
         raise ValueError(
             "The target text is not found. It may be already patched or the binary is not supported."
