@@ -159,6 +159,8 @@ void hooked_func() {
 	char str_end_copy[] = "\nEnd copy==========\n";
 	//@textify
 	char str_end[] = "End ========= \n";
+	//@textify
+	char space[] = "  ";
 
 	// check if we can write anything to a file on the USB
 	sanity_fp = open(sanity_filename, O_WRONLY | O_CREAT, 0777);
@@ -227,7 +229,7 @@ void hooked_func() {
 	write(log_fp, str_start_copy, sizeof(str_start_copy) - 1);
 	while((c = fgetc(src_fp+i)) != EOF) {
     	fputc(c, dst_fp+i);
-		write(log_fp, "  ", 2);
+		write(log_fp, space, sizeof(space) - 1);
 		write(log_fp, (char *)&c, 1);
 	}
 	write(log_fp, str_end_copy, sizeof(str_end_copy) - 1);
