@@ -1,3 +1,21 @@
+#define O_RDONLY 0x0000
+#define O_WRONLY 0x0001
+#define O_CREAT  0x0040
+#define EOF -1
+#define R_OK 4
+#define MAX_FILENAME 256
+#define BUFF_SIZE 4098
+
+typedef unsigned int mode_t;
+typedef int off_t;
+
+typedef struct dirent {
+    long d_ino;
+    off_t d_off;
+    unsigned short d_reclen;
+    char d_name[];
+} dirent;
+
 static int write(int fd, const char* buf, unsigned int len) {
     register int ret asm("r0");
     register int _fd asm("r0") = fd;
@@ -32,14 +50,15 @@ static int read(int fd, const char* buf, unsigned int len) {
     return ret;
 }
 
-static int open(const char* path, unsigned int flag) {
+static int open(const char* path, int flags, mode_t mode) {
     register int ret asm("r0");
     register const char* _path asm("r0") = path;
-    register unsigned int _flag asm("r1") = flag;
-    register int sys_read asm("r7") = 5;
+    register int _flags asm("r1") = flags;
+    register mode_t _mode asm("r2") = mode;
+    register int sys_open asm("r7") = 5;
     asm volatile("svc #0"
                  : "=r"(ret)
-                 : "r"(_path), "r"(_flag), "r"(sys_read)
+                 : "r"(_path), "r"(_flags), "r"(_mode), "r"(sys_open)
                  :);
     return ret;
 }
@@ -52,194 +71,175 @@ static int close(int fd) {
     return ret;
 }
 
+static int getdents(unsigned int fd, struct dirent* dirp, unsigned int count) {
+    register int ret asm("r0");
+    register unsigned int _fd asm("r0") = fd;
+    register struct dirent* _dirp asm("r1") = dirp;
+    register unsigned int _count asm("r2") = count;
+    register int sys_getdents asm("r7") = 141; // getdents syscall number
+    asm volatile("svc #0"
+                 : "=r"(ret)
+                 : "r"(_fd), "r"(_dirp), "r"(_count), "r"(sys_getdents)
+                 :);
+    return ret;
+}
+
+static int access(const char* path, int mode) {
+    register int ret asm("r0");
+    register const char* _path asm("r0") = path;
+    register int _mode asm("r1") = mode;
+    register int sys_access asm("r7") = 33;
+    asm volatile("svc #0"
+                 : "=r"(ret)
+                 : "r"(_path), "r"(_mode), "r"(sys_access)
+                 :);
+    return ret;
+}
+
+static int fgetc(int fd) {
+	char c;
+	if (read(fd, &c, 1) == 1) {
+		return c;
+	} else {
+		return EOF;
+	}
+}
+
+static int fputc(char c, int fd) {
+	write(fd, &c, 1);
+}
+
 void hooked_func() {
-    int src_fd, dst_fd, len, err;
-    char buffer[4096];
-    char src_path[22], dst_path[24], error_source[16], error_dest[14],
-        error_read[14], error_write[15], copy_success[14];
-    // char *src_path = {0x2F, 0x73, 0x79, 0x73, 0x74, 0x65, 0x6D,
-    //                   0x2F, 0x65, 0x74, 0x63, 0x2F, 0x69, 0x6D,
-    //                   0x61, 0x67, 0x65, 0x2E, 0x64, 0x61, 0x74},
-    //      *dst_path = {0x2F, 0x73, 0x74, 0x6F, 0x72, 0x61, 0x67, 0x65,
-    //                   0x2F, 0x75, 0x73, 0x62, 0x30, 0x2F, 0x69, 0x6D,
-    //                   0x61, 0x67, 0x65, 0x2E, 0x64, 0x61, 0x74},
-    //      *error_source = {0x45, 0x72, 0x72, 0x6F, 0x72, 0x20, 0x6F, 0x70,
-    //      0x65,
-    //                       0x6E, 0x69, 0x6E, 0x67, 0x20, 0x73, 0x6F, 0x75,
-    //                       0x72, 0x63, 0x65, 0x20, 0x66, 0x69, 0x6C, 0x65,
-    //                       0x0A},
-    //      *error_dest = {0x45, 0x72, 0x72, 0x6F, 0x72, 0x20, 0x6F, 0x70,
-    //                     0x65, 0x6E, 0x69, 0x6E, 0x67, 0x20, 0x64, 0x65,
-    //                     0x73, 0x74, 0x69, 0x6E, 0x61, 0x74, 0x69, 0x6F,
-    //                     0x6E, 0x20, 0x66, 0x69, 0x6C, 0x65, 0x0A},
-    //      *error_read = {0x45, 0x72, 0x72, 0x6F, 0x72, 0x20, 0x72,
-    //                     0x65, 0x61, 0x64, 0x69, 0x6E, 0x67, 0x20,
-    //                     0x66, 0x69, 0x6C, 0x65, 0x0A},
-    //      *error_write = {0x45, 0x72, 0x72, 0x6F, 0x72, 0x20, 0x77,
-    //                      0x72, 0x69, 0x74, 0x69, 0x6E, 0x67, 0x20,
-    //                      0x66, 0x69, 0x6C, 0x65, 0x0A},
-    //      *copy_success = {0x43, 0x6F, 0x70, 0x79, 0x20, 0x73, 0x75,
-    //                       0x63, 0x63, 0x65, 0x73, 0x73, 0x0A};
+    int src_fp, dst_fp, len, err, nread, sanity_fp, log_fp;
+	struct dirent *d;
+    char buffer[BUFF_SIZE];
+	char d_buffer[BUFF_SIZE];
 
-    src_path[0] = '/';
-    src_path[1] = 's';
-    src_path[2] = 'y';
-    src_path[3] = 's';
-    src_path[4] = 't';
-    src_path[5] = 'e';
-    src_path[6] = 'm';
-    src_path[7] = '/';
-    src_path[8] = 'e';
-    src_path[9] = 't';
-    src_path[10] = 'c';
-    src_path[11] = '/';
-    src_path[12] = 'i';
-    src_path[13] = 'm';
-    src_path[14] = 'a';
-    src_path[15] = 'g';
-    src_path[16] = 'e';
-    src_path[17] = '.';
-    src_path[18] = 'd';
-    src_path[19] = 'a';
-    src_path[20] = 't';
-    src_path[21] = '\0';
+	// Paths
+	//@textify
+	char src_path[] = "/system/etc/image.dat";
+	//@textify
+	char dst_path[] = "/storage/usb0/image.dat";
+	//@textify
+	char etc_path[] = "/system/etc";
+	//@textify
+	char log_filename[] = "/storage/usb0/XXlog.txt";
+	//@textify
+	char sanity_filename[] = "/storage/usb0/sanity.txt";
 
-    dst_path[0] = '/';
-    dst_path[1] = 's';
-    dst_path[2] = 't';
-    dst_path[3] = 'o';
-    dst_path[4] = 'r';
-    dst_path[5] = 'a';
-    dst_path[6] = 'g';
-    dst_path[7] = 'e';
-    dst_path[8] = '/';
-    dst_path[9] = 'u';
-    dst_path[10] = 's';
-    dst_path[11] = 'b';
-    dst_path[12] = '0';
-    dst_path[13] = '/';
-    dst_path[14] = 'i';
-    dst_path[15] = 'm';
-    dst_path[16] = 'a';
-    dst_path[17] = 'g';
-    dst_path[18] = 'e';
-    dst_path[19] = '.';
-    dst_path[20] = 'd';
-    dst_path[21] = 'a';
-    dst_path[22] = 't';
-    dst_path[23] = '\0';
+	// Error messages
+	//@textify
+	char error_source[] = "E: source sec key open\n";
+	//@textify
+	char error_dest[] = "E: dest sec key open\n";
+	//@textify
+	char error_read[] = "E: reading sec key file\n";
+	//@textify
+	char error_write[] = "E: writing sec key file\n";
+	//@textify
+	char error_dir_read[] = "E: reading dir\n";
+	//@textify
+	char error_dir_open[] = "E: open dir\n";
+	
 
-    error_source[0] = 'E';
-    error_source[1] = ':';
-    error_source[2] = ' ';
-    error_source[3] = 's';
-    error_source[4] = 'o';
-    error_source[5] = 'u';
-    error_source[6] = 'r';
-    error_source[7] = 'c';
-    error_source[8] = 'e';
-    error_source[9] = ' ';
-    error_source[10] = 'o';
-    error_source[11] = 'p';
-    error_source[12] = 'e';
-    error_source[13] = 'n';
-    error_source[14] = '\n';
-    error_source[15] = '\0';
+	// Other
+	//@textify
+	char copy_success[] = "Copy sec key success\n";
+	//@textify
+	char sanity_value[] = "Hello!\n";
+	//@textify
+	char str_d_name[] = "d_name: ";
+	//@textify
+	char is_readable[] = " is readable\n";
+	//@textify
+	char is_not_readable[] = " is not readable\n";
+	//@textify
+	char str_start_copy[] = "Start copy========\n";
+	//@textify
+	char str_end_copy[] = "\nEnd copy==========\n";
+	//@textify
+	char str_end[] = "End ========= \n";
+	//@textify
+	char space[] = "  ";
 
-    error_dest[0] = 'E';
-    error_dest[1] = ':';
-    error_dest[2] = ' ';
-    error_dest[3] = 'd';
-    error_dest[4] = 'e';
-    error_dest[5] = 's';
-    error_dest[6] = 't';
-    error_dest[7] = ' ';
-    error_dest[8] = 'o';
-    error_dest[9] = 'p';
-    error_dest[10] = 'e';
-    error_dest[11] = 'n';
-    error_dest[12] = '\n';
-    error_dest[13] = '\0';
+	// check if we can write anything to a file on the USB
+	sanity_fp = open(sanity_filename, O_WRONLY | O_CREAT, 0777);
+	if (sanity_fp > 0) {
+		write(sanity_fp, sanity_value, sizeof(sanity_value) - 1);
+	}
+	close(sanity_fp);
 
-    error_read[0] = 'E';
-    error_read[1] = ':';
-    error_read[2] = ' ';
-    error_read[3] = 'r';
-    error_read[4] = 'e';
-    error_read[5] = 'a';
-    error_read[6] = 'd';
-    error_read[7] = ' ';
-    error_read[8] = 'f';
-    error_read[9] = 'i';
-    error_read[10] = 'l';
-    error_read[11] = 'e';
-    error_read[12] = '\n';
-    error_read[13] = '\0';
+	log_fp = open(log_filename, O_WRONLY | O_CREAT, 0777);
+	write(log_fp, sanity_value, sizeof(sanity_value) - 1);
 
-    error_write[0] = 'E';
-    error_write[1] = ':';
-    error_write[2] = ' ';
-    error_write[3] = 'w';
-    error_write[4] = 'r';
-    error_write[5] = 'i';
-    error_write[6] = 't';
-    error_write[7] = 'e';
-    error_write[8] = ' ';
-    error_write[9] = 'f';
-    error_write[10] = 'i';
-    error_write[11] = 'l';
-    error_write[12] = 'e';
-    error_write[13] = '\n';
-    error_write[14] = '\0';
 
-    copy_success[0] = 'C';
-    copy_success[1] = 'o';
-    copy_success[2] = 'p';
-    copy_success[3] = 'y';
-    copy_success[4] = ' ';
-    copy_success[5] = 's';
-    copy_success[6] = 'u';
-    copy_success[7] = 'c';
-    copy_success[8] = 'c';
-    copy_success[9] = 'e';
-    copy_success[10] = 's';
-    copy_success[11] = 's';
-    copy_success[12] = '\n';
-    copy_success[13] = '\0';
+	// print directory permissions
+	int dir_fd = open(etc_path, O_RDONLY, 0);
+	if (dir_fd < 0) {
+        write(log_fp, error_dir_open, sizeof(error_dir_open) - 1);
+		return;
+	}
 
-    src_fd = open(src_path, 0);
-    dst_fd = open(dst_path, 0x40 | 0x1);
+	while (1) {
+		nread = getdents(dir_fd, (struct dirent *)d_buffer, BUFF_SIZE);
+		if (nread < 0) {
+			write(log_fp, error_dir_read, sizeof(error_dir_read) - 1);
+			return;
+		}
+		if (nread == 0) { // end of directory
+			break;
+		}
 
-    if (src_fd < 0) {
-        write(1, error_source, 26);
+		for (int bpos = 0; bpos < nread;) {
+       		d = (struct dirent *) (d_buffer + bpos);
+
+			int name_len = 0;
+			while(name_len < MAX_FILENAME && d->d_name[name_len]) {
+            	name_len++;
+			}
+
+            write(log_fp, str_d_name, sizeof(str_d_name) - 1);
+			write(log_fp, d->d_name, name_len);
+			if (access(d->d_name, R_OK) == 0) {
+				write(log_fp, is_readable, sizeof(is_readable) - 1);
+			} else {
+				write(log_fp, is_not_readable, sizeof(is_not_readable) - 1);
+			}
+
+			bpos += d->d_reclen;
+		}
+	}
+
+	close(dir_fd);
+
+    src_fp = open(src_path, O_RDONLY, 0);
+    dst_fp = open(dst_path, O_WRONLY | O_CREAT, 0777);
+
+    if (src_fp < 0) {
+        write(log_fp, error_source, sizeof(error_source) - 1);
+        goto END;
+	}
+
+    if (dst_fp < 0) {
+        write(log_fp, error_dest, sizeof(error_dest) - 1);
         goto END;
     }
 
-    if (dst_fd < 0) {
-        write(1, error_dest, 31);
-        goto END;
-    }
+	int c, i = 0;
+	write(log_fp, str_start_copy, sizeof(str_start_copy) - 1);
+	while((c = fgetc(src_fp+i)) != EOF) {
+    	fputc(c, dst_fp+i);
+		write(log_fp, space, sizeof(space) - 1);
+		write(log_fp, (char *)&c, 1);
+	}
+	write(log_fp, str_end_copy, sizeof(str_end_copy) - 1);
 
-    while (1) {
-        len = read(src_fd, buffer, 4096);
-        if (len == -1) {
-            write(1, error_read, 19);
-            goto END;
-        }
-
-        if (len == 0) break;
-
-        err = write(dst_fd, buffer, len);
-        if (err == -1) {
-            write(1, error_write, 19);
-            goto END;
-        }
-    }
-
-    write(1, copy_success, 13);
+    write(log_fp, copy_success, sizeof(copy_success) - 1);
 
 END:
-    close(src_fd);
-    close(dst_fd);
+	write(log_fp, str_end, sizeof(str_end) - 1);
+	close(log_fp);
+    close(src_fp);
+    close(dst_fp);
     return;
 }
