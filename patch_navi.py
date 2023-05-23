@@ -1,35 +1,49 @@
 import lief
 from keystone import Ks, KS_ARCH_ARM, KS_MODE_THUMB
+from pwn import ELF
 
 
 def patch_ExSLNavi(filepath, dest):
-    orig = lief.parse(filepath)
+    # importing same binary twice just to get plt table lol
+    orig: lief.ELF.Binary = lief.parse(filepath)  # type: ignore
     hook = lief.parse("hook.o")
 
     hooked_func = hook.get_symbol("hooked_func")
+    fake_errno = hook.get_symbol("fake_errno")
     target_func = orig.get_symbol("printJNILog_JNI")
 
     code_section = hook.section_from_virtual_address(hooked_func.value)
     added_section = orig.add(code_section)
     rodata_section = orig.get_section(".rodata")
 
-    func_addr = added_section.virtual_address
+    func_addr = added_section.virtual_address + (
+        hooked_func.value - code_section.virtual_address
+    )
+    fake_errno_addr = (
+        added_section.virtual_address
+        + (fake_errno.value - code_section.virtual_address)
+        - 1
+    )
 
     # checking
     expected_hex = [0x01, 0xD0]
-    if (
-        orig.get_content_from_virtual_address(target_func.value + 0xBB, 2)
-        != expected_hex
+    if orig.get_content_from_virtual_address(target_func.value + 0xBB, 2) != bytes(
+        expected_hex
     ):
         raise ValueError(
             "The target opcode is not found. It may be already patched or the binary is not supported."
         )
+    # check for errno_
+    expected_hex = [0x86, 0xB0, 0x00, 0x20]
+    if orig.get_content_from_virtual_address(fake_errno_addr, 4) != bytes(expected_hex):
+        raise ValueError(
+            "The target errno is not found. It may be already patched or the binary is not supported."
+        )
     # check for "JNI_Layer" hex
     expected_hex = [0x4A, 0x4E, 0x49, 0x5F, 0x4C, 0x61, 0x79, 0x65, 0x72]
-    if (
-        orig.get_content_from_virtual_address(rodata_section.virtual_address, 9)
-        != expected_hex
-    ):
+    if orig.get_content_from_virtual_address(
+        rodata_section.virtual_address, 9
+    ) != bytes(expected_hex):
         raise ValueError(
             "The target text is not found. It may be already patched or the binary is not supported."
         )
@@ -41,6 +55,23 @@ def patch_ExSLNavi(filepath, dest):
     for i, b in enumerate(patch_asm):
         patch_hex[i] = b
     orig.patch_address(target_func.value + 0xBB, patch_hex)
+
+    orig.write(dest)
+    orig_pwn = ELF(dest)
+    __errno_addr = orig_pwn.plt["__errno"]
+
+    # patching errno
+    patch_asm, _ = ks.asm(f"blx #{__errno_addr - (fake_errno_addr + 0x2)}")
+    patch_hex = [0x00, 0xBF, 0x00, 0xBF]
+    for i, b in enumerate(patch_asm):
+        patch_hex[i] = b
+    patch_hex = (
+        [0x80, 0xB5, 0x6F, 0x46]
+        + patch_hex
+        + [0x00, 0x68, 0x80, 0xBD]
+        + [0x00, 0xBF] * 10
+    )
+    orig.patch_address(fake_errno_addr, patch_hex)
 
     # patching JNI_Layer
     # JNI_HACKD
