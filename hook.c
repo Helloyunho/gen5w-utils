@@ -16,22 +16,6 @@ typedef struct dirent {
     char d_name[];
 } dirent;
 
-static int fake_errno() {
-    // this is dummy function
-
-    // do some useless stuff so that we have enough instructions to overwrite
-    // with the hook
-    int a = 0;
-    int b = 1;
-    int c = 2;
-    int d = 3;
-    int e = 4;
-    int f = 5;
-
-    return a;
-}
-#define errno fake_errno()
-
 static int write(int fd, const char* buf, unsigned int len) {
     register int ret asm("r0");
     register int _fd asm("r0") = fd;
@@ -205,9 +189,8 @@ void hooked_func() {
     if (sanity_fp > 0) {
         write(sanity_fp, sanity_value, sizeof(sanity_value) - 1);
     } else {
-        int error = errno;
         char error_str[128] = {0};
-        int idx = int2str(error_str, error);
+        int idx = int2str(error_str, sanity_fp);
         write(1, error_str, sizeof(error_str) - 1);
         write(1, space, 2);
         write(1, sanity_failed, 21);
@@ -218,9 +201,8 @@ void hooked_func() {
 
     log_fp = open(log_filename, O_WRONLY | O_CREAT, 0777);
     if (log_fp < 0) {
-        int error = errno;
         char error_str[128] = {0};
-        int idx = int2str(error_str, error);
+        int idx = int2str(error_str, log_fp);
         write(1, error_str, sizeof(error_str) - 1);
         write(1, space, 2);
         write(1, sanity_failed, 21);
@@ -231,9 +213,8 @@ void hooked_func() {
     // print directory permissions
     int dir_fd = open(etc_path, O_RDONLY, 0);
     if (dir_fd < 0) {
-        int error = errno;
         char error_str[128] = {0};
-        int idx = int2str(error_str, error);
+        int idx = int2str(error_str, dir_fd);
         write(log_fp, error_str, sizeof(error_str) - 1);
         write(log_fp, space, 2);
         write(log_fp, error_dir_open, sizeof(error_dir_open) - 1);
@@ -243,9 +224,8 @@ void hooked_func() {
     while (1) {
         nread = getdents(dir_fd, (struct dirent*)d_buffer, BUFF_SIZE);
         if (nread < 0) {
-            int error = errno;
             char error_str[128] = {0};
-            int idx = int2str(error_str, error);
+            int idx = int2str(error_str, nread);
             write(log_fp, error_str, sizeof(error_str) - 1);
             write(log_fp, space, 2);
             write(log_fp, error_dir_read, sizeof(error_dir_read) - 1);
@@ -289,9 +269,8 @@ void hooked_func() {
 
     src_fp = open(src_path, O_RDONLY, 0);
     if (src_fp < 0) {
-        int error = fake_errno();
         char error_str[128] = {0};
-        int idx = int2str(error_str, error);
+        int idx = int2str(error_str, src_fp);
         write(log_fp, error_str, sizeof(error_str) - 1);
         write(log_fp, space, 2);
         write(log_fp, error_source, sizeof(error_source) - 1);
@@ -300,9 +279,8 @@ void hooked_func() {
 
     dst_fp = open(dst_path, O_WRONLY | O_CREAT, 0777);
     if (dst_fp < 0) {
-        int error = errno;
         char error_str[128] = {0};
-        int idx = int2str(error_str, error);
+        int idx = int2str(error_str, dst_fp);
         write(log_fp, error_str, sizeof(error_str) - 1);
         write(log_fp, space, 2);
         write(log_fp, error_dest, sizeof(error_dest) - 1);
