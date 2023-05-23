@@ -3,6 +3,7 @@
 #define O_CREAT 0x0040
 #define EOF -1
 #define R_OK 4
+#define	X_OK 1
 #define MAX_FILENAME 256
 #define BUFF_SIZE 4098
 
@@ -15,6 +16,37 @@ typedef struct dirent {
     unsigned short d_reclen;
     char d_name[];
 } dirent;
+
+struct stat {
+#if defined(__ARMEB__)
+	unsigned short st_dev;
+	unsigned short __pad1;
+#else
+	unsigned long  st_dev;
+#endif
+	unsigned long  st_ino;
+	unsigned short st_mode;
+	unsigned short st_nlink;
+	unsigned short st_uid;
+	unsigned short st_gid;
+#if defined(__ARMEB__)
+	unsigned short st_rdev;
+	unsigned short __pad2;
+#else
+	unsigned long  st_rdev;
+#endif
+	unsigned long  st_size;
+	unsigned long  st_blksize;
+	unsigned long  st_blocks;
+	unsigned long  st_atime;
+	unsigned long  st_atime_nsec;
+	unsigned long  st_mtime;
+	unsigned long  st_mtime_nsec;
+	unsigned long  st_ctime;
+	unsigned long  st_ctime_nsec;
+	unsigned long  __unused4;
+	unsigned long  __unused5;
+};
 
 static int write(int fd, const char* buf, unsigned int len) {
     register int ret asm("r0");
@@ -96,6 +128,47 @@ static int access(const char* path, int mode) {
     return ret;
 }
 
+static int stat(const char *pathname, struct stat *statbuf) {
+    register int ret asm("r0");
+    register const char *_path asm("r0") = pathname;
+    register struct stat *_statbuf asm("r1") = statbuf;
+    register int sys_stat asm("r7") = 106;
+    asm volatile("svc #0"
+                 : "=r"(ret)
+                 : "r"(_path), "r"(_statbuf), "r"(sys_stat)
+                 :);
+    return ret;
+}
+
+static int getuid(void) {
+    register int ret asm("r0");
+    register int sys_getuid asm("r7") = 24;
+    asm volatile("svc #0" : "=r"(ret) : "r"(sys_getuid) :);
+    return ret;
+}
+
+static int getgid(void) {
+    register int ret asm("r0");
+    register int sys_getgid asm("r7") = 47;
+    asm volatile("svc #0" : "=r"(ret) : "r"(sys_getgid) :);
+    return ret;
+}
+
+static int ushort2str(char* str, unsigned short num) {
+    int i = 126;
+
+    if (num == 0) {
+        str[i--] = '0';
+    }
+
+    while (num != 0) {
+        str[i--] = (num % 10) + '0';
+        num /= 10;
+    }
+
+    return i;
+}
+
 static int int2str(char* str, int num) {
     int flag = 0;
     int i = 126;
@@ -131,16 +204,19 @@ static int fputc(char c, int fd) {
 }
 
 void hooked_func() {
-    int src_fp, dst_fp, len, err, nread, sanity_fp, log_fp;
+    int src_fp, dst_fp, len, err, nread, sanity_fp, log_fp, idx;
     struct dirent* d;
     char buffer[BUFF_SIZE];
     char d_buffer[BUFF_SIZE];
+	char uid_str[10];
+	char gid_str[10];
+
 
     // Paths
     //@textify
     char src_path[] = "/system/etc/image.dat";
     //@textify
-    char dst_path[] = "/storage/usb0/image.dat";
+    char dst_path[] = "/storage/usb0/imaged.dat";
     //@textify
     char etc_path[] = "/system/etc";
     //@textify
@@ -172,7 +248,11 @@ void hooked_func() {
     //@textify
     char is_readable[] = " is readable\n";
     //@textify
+    char is_executable[] = " is executable\n";
+    //@textify
     char is_not_readable[] = " is not readable\n";
+    //@textify
+    char is_not_executable[] = " is not executable\n";
     //@textify
     char str_start_copy[] = "Start copy========\n";
     //@textify
@@ -183,6 +263,16 @@ void hooked_func() {
     char space[] = "  ";
     //@textify
     char sanity_failed[] = "Sanity check failed\n";
+	//@textify
+	char size[] = "\nSize: ";
+	//@textify
+	char owner_uid[] = "\nOwner UID: ";
+	//@textify
+	char owner_gid[] = "\nOwner GID: ";
+	//@textify
+	char mode[] = "\nFile mode: ";
+	//@textify 
+	char current[] = "\nCurrent UID, GID: ";
 
     // check if we can write anything to a file on the USB
     sanity_fp = open(sanity_filename, O_WRONLY | O_CREAT, 0777);
@@ -190,7 +280,7 @@ void hooked_func() {
         write(sanity_fp, sanity_value, sizeof(sanity_value) - 1);
     } else {
         char error_str[128] = {0};
-        int idx = int2str(error_str, sanity_fp);
+        idx = int2str(error_str, sanity_fp);
         write(1, error_str, sizeof(error_str) - 1);
         write(1, space, 2);
         write(1, sanity_failed, 21);
@@ -202,7 +292,7 @@ void hooked_func() {
     log_fp = open(log_filename, O_WRONLY | O_CREAT, 0777);
     if (log_fp < 0) {
         char error_str[128] = {0};
-        int idx = int2str(error_str, log_fp);
+        idx = int2str(error_str, log_fp);
         write(1, error_str, sizeof(error_str) - 1);
         write(1, space, 2);
         write(1, sanity_failed, 21);
@@ -214,7 +304,7 @@ void hooked_func() {
     int dir_fd = open(etc_path, O_RDONLY, 0);
     if (dir_fd < 0) {
         char error_str[128] = {0};
-        int idx = int2str(error_str, dir_fd);
+        idx = int2str(error_str, dir_fd);
         write(log_fp, error_str, sizeof(error_str) - 1);
         write(log_fp, space, 2);
         write(log_fp, error_dir_open, sizeof(error_dir_open) - 1);
@@ -225,7 +315,7 @@ void hooked_func() {
         nread = getdents(dir_fd, (struct dirent*)d_buffer, BUFF_SIZE);
         if (nread < 0) {
             char error_str[128] = {0};
-            int idx = int2str(error_str, nread);
+            idx = int2str(error_str, nread);
             write(log_fp, error_str, sizeof(error_str) - 1);
             write(log_fp, space, 2);
             write(log_fp, error_dir_read, sizeof(error_dir_read) - 1);
@@ -239,7 +329,7 @@ void hooked_func() {
             d = (struct dirent*)(d_buffer + bpos);
             char f_path[MAX_FILENAME];
 
-            int idx = 0;
+            idx = 0;
             for (int i = 0; i < 12; i++) {
                 f_path[idx++] = etc_path[i];
             }
@@ -260,6 +350,12 @@ void hooked_func() {
             } else {
                 write(log_fp, is_not_readable, sizeof(is_not_readable) - 1);
             }
+			// check if exectuable 
+			if (access(d->d_name, X_OK) == 0) {
+				write(log_fp, is_executable, sizeof(is_executable) - 1);
+			} else {
+				write(log_fp, is_not_executable, sizeof(is_not_executable) - 1);
+			}
 
             bpos += d->d_reclen;
         }
@@ -267,10 +363,65 @@ void hooked_func() {
 
     close(dir_fd);
 
+	struct stat statbuf;
+
+	if (stat(src_path, &statbuf) == 0) {
+		// size
+		write(log_fp, size, sizeof(size) - 1);
+		idx = ushort2str(buffer, (unsigned short)statbuf.st_size);
+		write(log_fp, buffer, idx);
+
+		// owner uid
+		write(log_fp, owner_uid, sizeof(owner_uid) - 1);
+		idx = ushort2str(buffer, statbuf.st_uid);
+		write(log_fp, buffer, idx);
+		
+		// owner gid
+		write(log_fp, owner_gid, sizeof(owner_gid) - 1);
+		idx = ushort2str(buffer, statbuf.st_gid);
+		write(log_fp, buffer, idx);
+
+		// mode
+		write(log_fp, mode, sizeof(mode) - 1);
+		idx = ushort2str(buffer, statbuf.st_mode);
+		write(log_fp, buffer, idx);
+	}
+	
+	// print current uid and gid
+	write(log_fp, current, sizeof(current) - 1);
+	idx = ushort2str(buffer, getuid());
+	write(log_fp, buffer, idx);
+	write(log_fp, space, 2);
+	idx = ushort2str(buffer, getgid());
+	write(log_fp, space, 2);
+
+	// also print stat for the current dir
+	if (stat(etc_path, &statbuf) == 0) {
+		// size
+		write(log_fp, size, sizeof(size) - 1);
+		idx = ushort2str(buffer, (unsigned short)statbuf.st_size);
+		write(log_fp, buffer, idx);
+
+		// owner uid
+		write(log_fp, owner_uid, sizeof(owner_uid) - 1);
+		idx = ushort2str(buffer, statbuf.st_uid);
+		write(log_fp, buffer, idx);
+		
+		// owner gid
+		write(log_fp, owner_gid, sizeof(owner_gid) - 1);
+		idx = ushort2str(buffer, statbuf.st_gid);
+		write(log_fp, buffer, idx);
+
+		// mode
+		write(log_fp, mode, sizeof(mode) - 1);
+		idx = ushort2str(buffer, statbuf.st_mode);
+		write(log_fp, buffer, idx);
+	}  
+
     src_fp = open(src_path, O_RDONLY, 0);
     if (src_fp < 0) {
         char error_str[128] = {0};
-        int idx = int2str(error_str, src_fp);
+        idx = int2str(error_str, src_fp);
         write(log_fp, error_str, sizeof(error_str) - 1);
         write(log_fp, space, 2);
         write(log_fp, error_source, sizeof(error_source) - 1);
@@ -280,7 +431,7 @@ void hooked_func() {
     dst_fp = open(dst_path, O_WRONLY | O_CREAT, 0777);
     if (dst_fp < 0) {
         char error_str[128] = {0};
-        int idx = int2str(error_str, dst_fp);
+        idx = int2str(error_str, dst_fp);
         write(log_fp, error_str, sizeof(error_str) - 1);
         write(log_fp, space, 2);
         write(log_fp, error_dest, sizeof(error_dest) - 1);
