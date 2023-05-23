@@ -138,7 +138,13 @@ static int fgetc(int fd) {
     }
 }
 
-static int fputc(char c, int fd) { write(fd, &c, 1); }
+static int fputc(char c, int fd) {
+    if (write(fd, &c, 1) == 1) {
+        return c;
+    } else {
+        return EOF;
+    }
+}
 
 void hooked_func() {
     int src_fp, dst_fp, len, err, nread, sanity_fp, log_fp;
@@ -303,10 +309,10 @@ void hooked_func() {
         goto END;
     }
 
-    int c, i = 0;
+    int c = 0;
     write(log_fp, str_start_copy, sizeof(str_start_copy) - 1);
-    while ((c = fgetc(src_fp + i)) != EOF) {
-        fputc(c, dst_fp + i);
+    while ((c = fgetc(src_fp)) != EOF) {
+        fputc(c, dst_fp);
         write(log_fp, space, sizeof(space) - 1);
         write(log_fp, (char*)&c, 1);
     }

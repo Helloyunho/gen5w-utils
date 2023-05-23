@@ -1,2 +1,8 @@
 .DS_Store
 __pycache__
+
+# Debug stuffs
+patch_and_copy.sh
+
+# Compiled hook
+*.o
