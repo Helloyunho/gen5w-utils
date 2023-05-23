@@ -1,6 +1,6 @@
 #define O_RDONLY 0x0000
 #define O_WRONLY 0x0001
-#define O_CREAT  0x0200
+#define O_CREAT  0x0040
 #define EOF -1
 #define R_OK 4
 #define MAX_FILENAME 256
