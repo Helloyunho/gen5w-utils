@@ -137,10 +137,10 @@ void hooked_func() {
     char d_buffer[BUFF_SIZE];
 
     // Paths
+    ///@textify
+    char src_path[] = "/system/etc/recovery-resource.dat";
     //@textify
-    char src_path[] = "/system/etc/image.dat";
-    //@textify
-    char dst_path[] = "/storage/usb0/image.dat";
+    char dst_path[] = "/storage/usb0/recovery-resource.dat";
     //@textify
     char etc_path[] = "/system/etc";
     //@textify
