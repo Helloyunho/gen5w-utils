@@ -79,6 +79,7 @@ if __name__ == "__main__":
             navi_version_tags[
                 3
             ] = f"{tarlist['sw_version']['year']:02d}{tarlist['sw_version']['month']:02d}{tarlist['sw_version']['day']:02d}"
+            navi_version_tags[4] = f"{tarlist['sw_version']['ver1']:x}\n"
             navi_version_path.write_text(".".join(navi_version_tags))
 
         if not skip_patching:

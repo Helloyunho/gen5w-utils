@@ -142,7 +142,7 @@ def generate_tarlist(tarlist: TarListFile) -> str:
     for _t in ["SWVERSION", "NEW_SWVERSION"]:
         for car_manufacture in ["K", "H", "G"]:
             lines.append(
-                f"@{_t}_{car_manufacture}:STD5W.{tarlist['sw_version']['region']}.{'KIA' if car_manufacture == 'K' else 'HMC' if car_manufacture == 'H' else 'GNS' if car_manufacture == 'G' else 'UNKNOWN'}.{tarlist['sw_version']['year']:02d}{tarlist['sw_version']['month']:02d}{tarlist['sw_version']['day']:02d}.{tarlist['sw_version']['ver1']:x}"
+                f"@{_t}_{car_manufacture}:STD5W.{tarlist['sw_version']['region']}.{("KIA" if _t == "NEW_SWVERSION" else "KMC") if car_manufacture == 'K' else 'HMC' if car_manufacture == 'H' else 'GNS' if car_manufacture == 'G' else 'UNKNOWN'}.{tarlist['sw_version']['year']:02d}{tarlist['sw_version']['month']:02d}{tarlist['sw_version']['day']:02d}.{tarlist['sw_version']['ver1']:x}"
             )
     return "\n".join(lines)
 
