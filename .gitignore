@@ -6,3 +6,4 @@ patch_and_copy.sh
 
 # Compiled hook
 *.o
+out-hook.c
