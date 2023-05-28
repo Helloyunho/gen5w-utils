@@ -96,21 +96,43 @@ static int access(const char* path, int mode) {
     return ret;
 }
 
-static int int2str(char* str, int num) {
-    int flag = 0;
-    int i = 126;
-    if (num < 0) {
-        flag = 1;
-        num = -num;
-    }
+static int strlen(const char* str) {
+    const char* s;
 
-    while (num != 0) {
-        str[i--] = (num % 10) + '0';
-        num /= 10;
-    }
+    for (s = str; *s; ++s)
+        ;
+    return s - str;
+}
 
-    if (flag) str[i--] = '-';
-    return i;
+static void strrev(char* str) {
+    int i;
+    int j;
+    unsigned char a;
+    unsigned len = strlen((const char*)str);
+    for (i = 0, j = len - 1; i < j; i++, j--) {
+        a = str[i];
+        str[i] = str[j];
+        str[j] = a;
+    }
+}
+
+static int itoa(int num, char* str, int len, int base) {
+    int sum = num;
+    int i = 0;
+    int digit;
+    if (len == 0) return -1;
+    do {
+        digit = sum % base;
+        if (digit < 0xA)
+            str[i++] = '0' + digit;
+        else
+            str[i++] = 'A' + digit - 0xA;
+        sum /= base;
+    } while (sum && (i < (len - 1)));
+    if (i == (len - 1) && sum) return -1;
+    str[i] = '\0';
+    strrev(str);
+    return 0;
 }
 
 static int fgetc(int fd) {
@@ -190,7 +212,7 @@ void hooked_func() {
         write(sanity_fp, sanity_value, sizeof(sanity_value) - 1);
     } else {
         char error_str[128] = {0};
-        int idx = int2str(error_str, sanity_fp);
+        itoa(sanity_fp, error_str, sizeof(error_str), 10);
         write(1, error_str, sizeof(error_str) - 1);
         write(1, space, 2);
         write(1, sanity_failed, 21);
@@ -202,7 +224,7 @@ void hooked_func() {
     log_fp = open(log_filename, O_WRONLY | O_CREAT, 0777);
     if (log_fp < 0) {
         char error_str[128] = {0};
-        int idx = int2str(error_str, log_fp);
+        itoa(log_fp, error_str, sizeof(error_str), 10);
         write(1, error_str, sizeof(error_str) - 1);
         write(1, space, 2);
         write(1, sanity_failed, 21);
@@ -214,7 +236,7 @@ void hooked_func() {
     int dir_fd = open(etc_path, O_RDONLY, 0);
     if (dir_fd < 0) {
         char error_str[128] = {0};
-        int idx = int2str(error_str, dir_fd);
+        itoa(dir_fd, error_str, sizeof(error_str), 10);
         write(log_fp, error_str, sizeof(error_str) - 1);
         write(log_fp, space, 2);
         write(log_fp, error_dir_open, sizeof(error_dir_open) - 1);
@@ -225,7 +247,7 @@ void hooked_func() {
         nread = getdents(dir_fd, (struct dirent*)d_buffer, BUFF_SIZE);
         if (nread < 0) {
             char error_str[128] = {0};
-            int idx = int2str(error_str, nread);
+            itoa(nread, error_str, sizeof(error_str), 10);
             write(log_fp, error_str, sizeof(error_str) - 1);
             write(log_fp, space, 2);
             write(log_fp, error_dir_read, sizeof(error_dir_read) - 1);
@@ -270,7 +292,7 @@ void hooked_func() {
     src_fp = open(src_path, O_RDONLY, 0);
     if (src_fp < 0) {
         char error_str[128] = {0};
-        int idx = int2str(error_str, src_fp);
+        itoa(src_fp, error_str, sizeof(error_str), 10);
         write(log_fp, error_str, sizeof(error_str) - 1);
         write(log_fp, space, 2);
         write(log_fp, error_source, sizeof(error_source) - 1);
@@ -280,7 +302,7 @@ void hooked_func() {
     dst_fp = open(dst_path, O_WRONLY | O_CREAT, 0777);
     if (dst_fp < 0) {
         char error_str[128] = {0};
-        int idx = int2str(error_str, dst_fp);
+        itoa(dst_fp, error_str, sizeof(error_str), 10);
         write(log_fp, error_str, sizeof(error_str) - 1);
         write(log_fp, space, 2);
         write(log_fp, error_dest, sizeof(error_dest) - 1);

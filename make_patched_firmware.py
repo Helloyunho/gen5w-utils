@@ -74,6 +74,9 @@ if __name__ == "__main__":
         print("Patching Navi_Version.txt...")
         tarlist["sw_version"]["day"] += 1
         tarlist["sw_version"]["ver1"] += 1
+        print(
+            f"Bumping version to {tarlist['sw_version']['year']:02d}{tarlist['sw_version']['month']:02d}{tarlist['sw_version']['day']:02d}.{tarlist['sw_version']['ver1']:x}..."
+        )
         for navi_version_path in navi_version_paths:
             navi_version_tags = navi_version_path.read_text().split(".")
             navi_version_tags[
