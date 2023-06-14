@@ -192,6 +192,10 @@ if __name__ == "__main__":
         print("Removing sw_backup/...")
         shutil.rmtree(firmware_dir / "sw_backup")
 
+        # Copy run.sh
+        print("Copying run.sh...")
+        shutil.copyfile("run.sh", firmware_dir / "run.sh")
+
         print("Done.")
     else:
         raise FileNotFoundError(
