@@ -39,6 +39,13 @@ static int execve(const char *filename, char *const argv[],
     return ret;
 }
 
+static int fork(void) {
+    register int ret asm("r0");
+    register int sys_fork asm("r7") = 2;
+    asm volatile("svc #0" : "=r"(ret) : "r"(sys_fork) :);
+    return ret;
+}
+
 static int open(const char *path, int flags, mode_t mode) {
     register int ret asm("r0");
     register const char *_path asm("r0") = path;
@@ -120,6 +127,8 @@ void hooked_func() {
     //@textify
     char run_sh[] = "Going to launch usb0/run.sh\n";
     //@textify
+    char pid_info[] = "PID: ";
+    //@textify
     char sh[] = "sh";
 
     log_fp = open(log_filename, O_WRONLY | O_CREAT, 0777);
@@ -135,9 +144,17 @@ void hooked_func() {
 
     // Execute run.sh
     write(log_fp, run_sh, sizeof(run_sh) - 1);
-    char *argv[] = {sh, script_path, NULL};
-    execve(sh_path, argv, NULL);
-LOG_END:
-    close(log_fp);
-    return;
+    int pid = fork();
+    if (pid == 0) {
+        char *argv[] = {sh, script_path, NULL};
+        execve(sh_path, argv, NULL);
+    } else {
+        write(log_fp, pid_info, sizeof(pid_info) - 1);
+        char pid_str[128] = {0};
+        itoa(pid, pid_str, sizeof(pid_str), 10);
+        write(log_fp, pid_str, sizeof(pid_str) - 1);
+    LOG_END:
+        close(log_fp);
+        return;
+    }
 }
