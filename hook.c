@@ -4,6 +4,30 @@
 
 typedef unsigned int mode_t;
 
+struct timeval {
+    long tv_sec;  /* seconds */
+    long tv_usec; /* microseconds */
+};
+
+struct rusage {
+    struct timeval ru_utime; /* user time used */
+    struct timeval ru_stime; /* system time used */
+    long ru_maxrss;          /* maximum resident set size */
+    long ru_ixrss;           /* integral shared memory size */
+    long ru_idrss;           /* integral unshared data size */
+    long ru_isrss;           /* integral unshared stack size */
+    long ru_minflt;          /* page reclaims */
+    long ru_majflt;          /* page faults */
+    long ru_nswap;           /* swaps */
+    long ru_inblock;         /* block input operations */
+    long ru_oublock;         /* block output operations */
+    long ru_msgsnd;          /* messages sent */
+    long ru_msgrcv;          /* messages received */
+    long ru_nsignals;        /* signals received */
+    long ru_nvcsw;           /* voluntary context switches */
+    long ru_nivcsw;          /* involuntary " */
+};
+
 static int write(int fd, const char *buf, unsigned int len) {
     register int ret asm("r0");
     register int _fd asm("r0") = fd;
@@ -46,6 +70,21 @@ static int fork(void) {
     return ret;
 }
 
+static int wait4(int pid, int *status, int options, struct rusage *rusage) {
+    register int ret asm("r0");
+    register int _pid asm("r0") = pid;
+    register int *_status asm("r1") = status;
+    register int _options asm("r2") = options;
+    register struct rusage *_rusage asm("r3") = rusage;
+    register int sys_execve asm("r7") = 114;
+    asm volatile("svc #0"
+                 : "=r"(ret)
+                 : "r"(_pid), "r"(_status), "r"(_options), "r"(_rusage),
+                   "r"(sys_execve)
+                 :);
+    return ret;
+}
+
 static int open(const char *path, int flags, mode_t mode) {
     register int ret asm("r0");
     register const char *_path asm("r0") = path;
@@ -67,43 +106,37 @@ static int close(int fd) {
     return ret;
 }
 
-static int strlen(const char *str) {
-    const char *s;
-
-    for (s = str; *s; ++s)
-        ;
-    return s - str;
-}
-
-static void strrev(char *str) {
+static int itoa(int value, char *sp, int radix) {
+    char tmp[16];  // be careful with the length of the buffer
+    char *tp = tmp;
     int i;
-    int j;
-    unsigned char a;
-    unsigned len = strlen((const char *)str);
-    for (i = 0, j = len - 1; i < j; i++, j--) {
-        a = str[i];
-        str[i] = str[j];
-        str[j] = a;
-    }
-}
+    unsigned v;
 
-static int itoa(int num, char *str, int len, int base) {
-    int sum = num;
-    int i = 0;
-    int digit;
-    if (len == 0) return -1;
-    do {
-        digit = sum % base;
-        if (digit < 0xA)
-            str[i++] = '0' + digit;
+    int sign = (radix == 10 && value < 0);
+    if (sign)
+        v = -value;
+    else
+        v = (unsigned)value;
+
+    while (v || tp == tmp) {
+        i = v % radix;
+        v /= radix;
+        if (i < 10)
+            *tp++ = i + '0';
         else
-            str[i++] = 'A' + digit - 0xA;
-        sum /= base;
-    } while (sum && (i < (len - 1)));
-    if (i == (len - 1) && sum) return -1;
-    str[i] = '\0';
-    strrev(str);
-    return 0;
+            *tp++ = i + 'a' - 10;
+    }
+
+    int len = tp - tmp;
+
+    if (sign) {
+        *sp++ = '-';
+        len++;
+    }
+
+    while (tp > tmp) *sp++ = *--tp;
+
+    return len;
 }
 
 void hooked_func() {
@@ -129,12 +162,14 @@ void hooked_func() {
     //@textify
     char pid_info[] = "PID: ";
     //@textify
+    char status_info[] = "Status: ";
+    //@textify
     char sh[] = "sh";
 
     log_fp = open(log_filename, O_WRONLY | O_CREAT, 0777);
     if (log_fp < 0) {
-        char error_str[128] = {0};
-        itoa(log_fp, error_str, sizeof(error_str), 10);
+        char error_str[15] = {0};
+        itoa(log_fp, error_str, 10);
         write(1, error_str, sizeof(error_str) - 1);
         write(1, space, 2);
         write(1, sanity_failed, 21);
@@ -148,13 +183,20 @@ void hooked_func() {
     if (pid == 0) {
         char *argv[] = {sh, script_path, NULL};
         execve(sh_path, argv, NULL);
-    } else {
-        write(log_fp, pid_info, sizeof(pid_info) - 1);
-        char pid_str[128] = {0};
-        itoa(pid, pid_str, sizeof(pid_str), 10);
-        write(log_fp, pid_str, sizeof(pid_str) - 1);
-    LOG_END:
-        close(log_fp);
-        return;
+        exit(0);
     }
+    int status;
+    write(log_fp, pid_info, sizeof(pid_info) - 1);
+    char pid_str[15] = {0};
+    itoa(pid, pid_str, 10);
+    write(log_fp, pid_str, sizeof(pid_str) - 1);
+    wait4(pid, &status, 0, NULL);
+    char status_str[15] = {0};
+    itoa(status, status_str, 10);
+    write(log_fp, space, 2);
+    write(log_fp, status_info, sizeof(status_info) - 1);
+    write(log_fp, status_str, sizeof(status_str) - 1);
+LOG_END:
+    close(log_fp);
+    return;
 }
