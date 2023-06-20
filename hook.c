@@ -76,11 +76,11 @@ static int wait4(int pid, int *status, int options, struct rusage *rusage) {
     register int *_status asm("r1") = status;
     register int _options asm("r2") = options;
     register struct rusage *_rusage asm("r3") = rusage;
-    register int sys_execve asm("r7") = 114;
+    register int sys_wait4 asm("r7") = 114;
     asm volatile("svc #0"
                  : "=r"(ret)
                  : "r"(_pid), "r"(_status), "r"(_options), "r"(_rusage),
-                   "r"(sys_execve)
+                   "r"(sys_wait4)
                  :);
     return ret;
 }
@@ -101,8 +101,28 @@ static int open(const char *path, int flags, mode_t mode) {
 static int close(int fd) {
     register int ret asm("r0");
     register int _fd asm("r0") = fd;
-    register int sys_read asm("r7") = 6;
-    asm volatile("svc #0" : "=r"(ret) : "r"(_fd), "r"(sys_read) :);
+    register int sys_close asm("r7") = 6;
+    asm volatile("svc #0" : "=r"(ret) : "r"(_fd), "r"(sys_close) :);
+    return ret;
+}
+
+static int access(const char *pathname, int mode) {
+    register int ret asm("r0");
+    register const char *_pathname asm("r0") = pathname;
+    register int _mode asm("r1") = mode;
+    register int sys_access asm("r7") = 33;
+    asm volatile("svc #0"
+                 : "=r"(ret)
+                 : "r"(_pathname), "r"(_mode), "r"(sys_access)
+                 :);
+    return ret;
+}
+
+static int unlink(const char *pathname) {
+    register int ret asm("r0");
+    register const char *_pathname asm("r0") = pathname;
+    register int sys_unlink asm("r7") = 10;
+    asm volatile("svc #0" : "=r"(ret) : "r"(_pathname), "r"(sys_unlink) :);
     return ret;
 }
 
@@ -140,13 +160,15 @@ static int itoa(int value, char *sp, int radix) {
 }
 
 void hooked_func() {
-    int log_fp;
+    int log_fp, lock_fp;
 
     // Paths
     //@textify
     char log_filename[] = "/storage/usb0/XXlog.txt";
     //@textify
     char script_path[] = "/storage/usb0/run.sh";
+    //@textify
+    char lock_file[] = "/storage/usb0/XXlock";
     //@textify
     char sh_path[] = "/system/bin/sh";
 
@@ -166,6 +188,23 @@ void hooked_func() {
     //@textify
     char sh[] = "sh";
 
+    // Check if lock file exists
+    if (access(lock_file, 0) == 0) {
+        return;
+    }
+
+    // Create lock file
+    lock_fp = open(lock_file, O_WRONLY | O_CREAT, 0777);
+    if (lock_fp < 0) {
+        char error_str[15] = {0};
+        itoa(lock_fp, error_str, 10);
+        write(1, error_str, sizeof(error_str) - 1);
+        write(1, space, 2);
+        write(1, sanity_failed, 21);
+        return;
+    }
+    close(lock_fp);
+
     log_fp = open(log_filename, O_WRONLY | O_CREAT, 0777);
     if (log_fp < 0) {
         char error_str[15] = {0};
@@ -173,7 +212,7 @@ void hooked_func() {
         write(1, error_str, sizeof(error_str) - 1);
         write(1, space, 2);
         write(1, sanity_failed, 21);
-        goto LOG_END;
+        return;
     }
     write(log_fp, sanity_value, sizeof(sanity_value) - 1);
 
@@ -197,6 +236,7 @@ void hooked_func() {
     write(log_fp, status_info, sizeof(status_info) - 1);
     write(log_fp, status_str, sizeof(status_str) - 1);
 LOG_END:
+    unlink(lock_file);
     close(log_fp);
     return;
 }
