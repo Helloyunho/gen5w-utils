@@ -211,7 +211,7 @@ void hooked_func() {
     // Create lock file
     lock_fp = open(lock_file, O_WRONLY | O_CREAT, 0777);
     if (lock_fp < 0) {
-        char error_str[15] = {0};
+        char error_str[15];
         itoa(lock_fp, error_str, 10);
         write(1, error_str, sizeof(error_str) - 1);
         write(1, space, 2);
@@ -222,7 +222,7 @@ void hooked_func() {
 
     log_fp = open(log_filename, O_WRONLY | O_CREAT, 0777);
     if (log_fp < 0) {
-        char error_str[15] = {0};
+        char error_str[15];
         itoa(log_fp, error_str, 10);
         write(1, error_str, sizeof(error_str) - 1);
         write(1, space, 2);
@@ -241,20 +241,19 @@ void hooked_func() {
     }
     int status;
     write(log_fp, pid_info, sizeof(pid_info) - 1);
-    char pid_str[15] = {0};
+    char pid_str[15];
     itoa(pid, pid_str, 10);
     write(log_fp, pid_str, sizeof(pid_str) - 1);
 
     // Wait for run.sh to finish
     wait4(pid, &status, 0, NULL);
 
-    char status_str[15] = {0};
+    char status_str[15];
     itoa(status, status_str, 10);
     write(log_fp, space, 2);
     write(log_fp, status_info, sizeof(status_info) - 1);
     write(log_fp, status_str, sizeof(status_str) - 1);
 LOG_END:
-    unlink(lock_file);
     close(log_fp);
     return;
 }
