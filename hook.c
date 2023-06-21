@@ -126,37 +126,52 @@ static int unlink(const char *pathname) {
     return ret;
 }
 
-static int itoa(int value, char *sp, int radix) {
-    char tmp[16];  // be careful with the length of the buffer
-    char *tp = tmp;
-    int i;
-    unsigned v;
+typedef enum { false, true } bool;
 
-    int sign = (radix == 10 && value < 0);
-    if (sign)
-        v = -value;
-    else
-        v = (unsigned)value;
+void swap(char *a, char *b) {
+    if (!a || !b) return;
 
-    while (v || tp == tmp) {
-        i = v % radix;
-        v /= radix;
-        if (i < 10)
-            *tp++ = i + '0';
-        else
-            *tp++ = i + 'a' - 10;
+    char temp = *(a);
+    *(a) = *(b);
+    *(b) = temp;
+}
+
+void reverse(char *str, int length) {
+    int start = 0;
+    int end = length - 1;
+    while (start < end) {
+        swap((str + start), (str + end));
+        start++;
+        end--;
+    }
+}
+
+static char *itoa(int num, char *str, int base) {
+    int i = 0;
+    bool isNegative = false;
+
+    if (num == 0) {
+        str[i++] = '0';
+        str[i] = '\0';
+        return str;
     }
 
-    int len = tp - tmp;
-
-    if (sign) {
-        *sp++ = '-';
-        len++;
+    if (num < 0 && base == 10) {
+        isNegative = true;
+        num = -num;
     }
 
-    while (tp > tmp) *sp++ = *--tp;
+    while (num != 0) {
+        int rem = num % base;
+        str[i++] = (rem > 9) ? (rem - 10) + 'a' : rem + '0';
+        num = num / base;
+    }
 
-    return len;
+    if (isNegative == true) str[i++] = '-';
+
+    str[i] = '\0';
+    reverse(str, i);
+    return str;
 }
 
 void hooked_func() {
@@ -229,7 +244,10 @@ void hooked_func() {
     char pid_str[15] = {0};
     itoa(pid, pid_str, 10);
     write(log_fp, pid_str, sizeof(pid_str) - 1);
+
+    // Wait for run.sh to finish
     wait4(pid, &status, 0, NULL);
+
     char status_str[15] = {0};
     itoa(status, status_str, 10);
     write(log_fp, space, 2);
