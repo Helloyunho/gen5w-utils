@@ -126,6 +126,22 @@ static int unlink(const char *pathname) {
     return ret;
 }
 
+static int setuid(int uid) {
+    register int ret asm("r0");
+    register int _uid asm("r0") = uid;
+    register int sys_setuid asm("r7") = 23;
+    asm volatile("svc #0" : "=r"(ret) : "r"(_uid), "r"(sys_setuid) :);
+    return ret;
+}
+
+static int setgid(int gid) {
+    register int ret asm("r0");
+    register int _gid asm("r0") = gid;
+    register int sys_setgid asm("r7") = 46;
+    asm volatile("svc #0" : "=r"(ret) : "r"(_gid), "r"(sys_setgid) :);
+    return ret;
+}
+
 typedef enum { false, true } bool;
 
 void swap(char *a, char *b) {
@@ -189,11 +205,15 @@ void hooked_func() {
 
     // Other
     //@textify
+    char version[] = "v0.0.1-beta-1\n";
+    //@textify
     char sanity_value[] = "Hello!\n";
     //@textify
     char space[] = "  ";
     //@textify
     char sanity_failed[] = "Sanity check failed\n";
+    //@textify
+    char try_root[] = "Trying to setuid(1000)\n";
     //@textify
     char run_sh[] = "Going to launch usb0/run.sh\n";
     //@textify
@@ -230,11 +250,16 @@ void hooked_func() {
         return;
     }
     write(log_fp, sanity_value, sizeof(sanity_value) - 1);
+    write(log_fp, version, sizeof(version) - 1);
 
-    // Execute run.sh
-    write(log_fp, run_sh, sizeof(run_sh) - 1);
     int pid = fork();
     if (pid == 0) {
+        // Try to setuid(1000)
+        write(log_fp, try_root, sizeof(try_root) - 1);
+        setgid(1000);
+        setuid(1000);
+        // Execute run.sh
+        write(log_fp, run_sh, sizeof(run_sh) - 1);
         char *argv[] = {sh, script_path, NULL};
         execve(sh_path, argv, NULL);
         exit(0);
