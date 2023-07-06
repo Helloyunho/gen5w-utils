@@ -17,6 +17,8 @@ Useful utilities for Hyundai/KIA/Genesis Gen5W navigation firmwares.
 - `sha256_gen.py`: Generates Hyundai's specialized SHA256 hash for Gen5W firmware.
 - `build.sh`: Automatically run textify tool and builds `hook.c` file into `hook.o` file. This requires Android NDK to be installed. Setup ANDROID_NDK_ROOT environment variable to the path of Android NDK.
 - `hook.c`: Actual hook code for `libExSLAndroid_JNI.so` library. This uses no any default libraries or standard library functions. The build arguments are `-mthumb -fPIC -shared -fomit-frame-pointer -nostdlib -nodefaultlibs -o hook.o`.
+- `sign_update_info_rsa.py`: Signs `update.info` file in Gen5W firmware using RSA private key.
+- `pub.pem` and `pri.pem`: Self generated RSA public and private keys for signing `update.info` file.
 
 ## Dependencies
 
