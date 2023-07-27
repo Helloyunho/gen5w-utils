@@ -15,10 +15,11 @@ Useful utilities for Hyundai/KIA/Genesis Gen5W navigation firmwares.
 - `make_patched_firmware.py`: Makes custom patched firmware with `sw_backup.tar`, `TarList.txt_encrypted` and `.ver` files.
 - `parse_update_info.py`: Parses `update.info` file in Gen5W firmware and prints it in human-friendly form.
 - `sha256_gen.py`: Generates Hyundai's specialized SHA256 hash for Gen5W firmware.
-- `build.sh`: Automatically run textify tool and builds `hook.c` file into `hook.o` file. This requires Android NDK to be installed. Setup ANDROID_NDK_ROOT environment variable to the path of Android NDK.
+- `build_hook.sh`: Automatically run textify tool and builds `hook.c` file into `hook.o` file. This requires Android NDK to be installed. Setup ANDROID_NDK_ROOT environment variable to the path of Android NDK.
 - `hook.c`: Actual hook code for `libExSLAndroid_JNI.so` library. This uses no any default libraries or standard library functions. The build arguments are `-mthumb -fPIC -shared -fomit-frame-pointer -nostdlib -nodefaultlibs -o hook.o`.
 - `sign_update_info_rsa.py`: Signs `update.info` file in Gen5W firmware using RSA private key.
 - `pub.pem` and `pri.pem`: Self generated RSA public and private keys for signing `update.info` file.
+- `build_tc-write-misc.sh`: Downloads `tc-write-misc.c` from Telechips and build `tc-write-misc` tool for Gen5W firmware. This requires Android NDK to be installed. Setup ANDROID_NDK_ROOT environment variable to the path of Android NDK.
 
 ## Dependencies
 
