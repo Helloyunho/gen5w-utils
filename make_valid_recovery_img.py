@@ -2,6 +2,7 @@ if __name__ == "__main__":
     import binascii
     import struct
     import argparse
+    import warnings
     import numpy as np
     from pathlib import Path
     from io import SEEK_CUR, SEEK_END
@@ -49,7 +50,9 @@ if __name__ == "__main__":
         d = f.read(4)
         while d:
             d = struct.unpack("<i", d)[0]
-            sum_ += np.int32(d)
+            with warnings.catch_warnings():
+                 warnings.simplefilter("ignore")
+                 sum_ += np.int32(d)
             if d != 0:
                 check_zero = 1
             d = f.read(4)
