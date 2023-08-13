@@ -20,6 +20,7 @@ Useful utilities for Hyundai/KIA/Genesis Gen5W navigation firmwares.
 - `sign_update_info_rsa.py`: Signs `update.info` file in Gen5W firmware using RSA private key.
 - `pub.pem` and `pri.pem`: Self generated RSA public and private keys for signing `update.info` file.
 - `build_tc-write-misc.sh`: Downloads `tc-write-misc.c` from Telechips and build `tc-write-misc` tool for Gen5W firmware. This requires Android NDK to be installed. Setup ANDROID_NDK_ROOT environment variable to the path of Android NDK.
+- `make_vaild_recovery_img.py`: Patches custom `recovery.img` file to pass the checksum check in Gen5W firmware.
 
 ## Dependencies
 
