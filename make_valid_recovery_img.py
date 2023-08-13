@@ -55,6 +55,9 @@ if __name__ == "__main__":
             d = f.read(4)
 
         if check_zero == 1:
+            if sum_ == 0:
+                print("Already patched. Skipping...")
+                exit(0)
             print("Check zero enabled. Patching recovery image...")
             f.seek(-4, SEEK_END)
             d = f.read(4)
