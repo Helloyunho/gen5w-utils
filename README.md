@@ -1,6 +1,7 @@
 # Gen5W Utils
 
 Useful utilities for Hyundai/KIA/Genesis Gen5W navigation firmwares.
+Join the Discord server here: https://discord.gg/KpwrAeHmQJ
 
 ## Files
 
