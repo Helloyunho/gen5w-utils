@@ -205,15 +205,13 @@ void hooked_func() {
 
     // Other
     //@textify
-    char version[] = "v0.0.1-beta-1\n";
+    char version[] = "v0.0.1-beta-2\n";
     //@textify
     char sanity_value[] = "Hello!\n";
     //@textify
     char space[] = "  ";
     //@textify
     char sanity_failed[] = "Sanity check failed\n";
-    //@textify
-    char try_root[] = "Trying to setuid(1000)\n";
     //@textify
     char run_sh[] = "Going to launch usb0/run.sh\n";
     //@textify
@@ -254,15 +252,17 @@ void hooked_func() {
 
     int pid = fork();
     if (pid == 0) {
-        // Try to setuid(1000)
-        write(log_fp, try_root, sizeof(try_root) - 1);
-        setgid(1000);
-        setuid(1000);
         // Execute run.sh
-        write(log_fp, run_sh, sizeof(run_sh) - 1);
-        char *argv[] = {sh, script_path, NULL};
-        execve(sh_path, argv, NULL);
-        exit(0);
+        if (access(script_path, 0) == 0) {
+            write(log_fp, run_sh, sizeof(run_sh) - 1);
+            char *argv[] = {sh, script_path, NULL};
+            execve(sh_path, argv, NULL);
+            exit(0);
+        } else {
+            write(log_fp, space, 2);
+            write(log_fp, sanity_failed, sizeof(sanity_failed) - 1);
+            exit(1);
+        }
     }
     int status;
     write(log_fp, pid_info, sizeof(pid_info) - 1);
