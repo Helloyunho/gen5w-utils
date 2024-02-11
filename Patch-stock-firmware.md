@@ -8,7 +8,7 @@
 - [Android NDK](https://developer.android.com/ndk)(tested on `25.2.9519653`, you can install any version that supports Android 4.4.2)
   - Probably the easiest way to install this is using Android Studio
   - You can use `sdkmanager`<sup>[[install]](https://command-not-found.com/android)</sup> to install NDK aswell.
-- Two USBs(Only need one if you have an old firmware installed)
+- Two exFAT formatted USBs(Only need one if you have an old firmware installed)
 
 - And of course, the stock firmware downloaded from Hyundai/Kia/Genesis.
   - It should have files like this
@@ -27,7 +27,7 @@ Though I never tested this on Windows, it should not work. It's best to just use
 
 You should be good to go if you're using macOS or Linux. I'm using macOS for this guide.
 
-## Building libtar
+## Build libtar
 
 1. Clone libtar to your computer and go to the cloned directory
 
@@ -53,7 +53,7 @@ git clone https://github.com/Helloyunho/gen5w-utils.git
 cd gen5w-utils
 ```
 
-## Building hook.c
+## Build hook.c
 
 1. Set the `ANDROID_NDK_ROOT` variable
 
@@ -77,7 +77,8 @@ chmod +x ./build_hook.sh
 ## Patch the firmware
 
 1. Duplicate the stock firmware directory
-  - Since the latest 2023 update, Hyundai Mobis decided to validate a checksum for Navigation files as well, essentially blocking our exploit. We're going to bypass this using two USBs, one with stock firmware, and the other with patched firmware.
+
+- Since the latest 2023 firmware, Hyundai Mobis decided to validate a checksum for Navigation files as well, essentially blocking our exploit. We're going to bypass this using two USBs, one with stock firmware, and the other with patched firmware.
 
 2. Run a single simple command
 
@@ -86,6 +87,17 @@ python3 make_patched_firmware.py [STOCK_FIRMWARE_DIR_HERE]
 ```
 
 Replace `[..._HERE]` correspondingly.
+
+3. Copy the patched firmware to the root of the USB
+
+- (Only for the latest 2023 firmware or above) Get another USB and copy the stock firmware to the root of the USB.
+<details>
+  <summary>For those who unsure what the root of the USB means</summary>
+
+- The root of the USB means the USB itself, not inside any folder.
+- Let me introduce my favorite picture from [DSi CFW Guide](https://dsi.cfw.guide/)
+![Root of the USB](https://media.discordapp.net/attachments/489307733074640926/756947922804932739/wherestheroot.png)
+</details>
 
 ## Conclusion
 
